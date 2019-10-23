@@ -80,7 +80,7 @@ module Aws::SessionStore::DynamoDB::Locking
 
     # @return [Hash] Options for saving a new session in database.
     def save_new_opts(env, sid, session)
-      attribute_opts = attr_updts(env, session, created_attr)
+      attribute_opts = attr_updts(env, session, created_attr, ttl_attr)
       merge_all(table_opts(sid), attribute_opts)
     end
 
@@ -88,7 +88,7 @@ module Aws::SessionStore::DynamoDB::Locking
     def save_exists_opts(env, sid, session, options = {})
       add_attr = options[:add_attrs] || {}
       expected = options[:expect_attr] || {}
-      attribute_opts = merge_all(attr_updts(env, session, add_attr), expected)
+      attribute_opts = merge_all(attr_updts(env, session, add_attr, ttl_attr), expected)
       merge_all(table_opts(sid), attribute_opts)
     end
 
@@ -106,12 +106,22 @@ module Aws::SessionStore::DynamoDB::Locking
     end
 
     # Attributes to update via client.
-    def attr_updts(env, session, add_attrs = {})
+    def attr_updts(env, session, add_attrs = {}, ttl_attr)
       data = data_unchanged?(env, session) ? {} : data_attr(session)
       {
-        :attribute_updates => merge_all(updated_attr, data, add_attrs),
+        :attribute_updates => merge_all(updated_attr, data, add_attrs, ttl_attr),
         :return_values => "UPDATED_NEW"
       }
+    end
+
+    # Build a TTL PUT
+    def new_ttl
+      { :value => (Time.now).to_i+3600, :action  => "PUT" }
+    end
+
+    # Define the new TTL attr
+    def ttl_attr
+      { "ttl" => new_ttl }
     end
 
     # Update client with current time attribute.
